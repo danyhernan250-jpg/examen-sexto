@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Examen Trimestral - Matemática 6°</title>
+  <style>
+    :root { --primary: #1a5490; --bg: #f0f4f8; --correct: #38a169; --wrong: #e53e3e; }
+    * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+    body { background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .app-container { width: 100%; max-width: 800px; background: white; padding: 30px 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    
+    /* Pantalla de inicio */
+    #screen-start { text-align: center; }
+    #screen-start h1 { color: var(--primary); font-size: 1.5em; margin-bottom: 5px; }
+    #screen-start h2 { font-size: 1.1em; color: #555; margin-top: 0; }
+    .form-group { margin-bottom: 15px; text-align: left; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+    .form-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; }
+    
+    /* Examen */
+    #screen-exam { display: none; }
+    .header-exam { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #eee; }
+    .timer { font-size: 1.2em; font-weight: bold; color: #e53e3e; background: #fff5f5; padding: 8px 15px; border-radius: 6px; }
+    .progress-container { width: 100%; background: #e2e8f0; border-radius: 8px; margin-bottom: 25px; height: 12px; }
+    .progress-bar { height: 100%; background: var(--primary); border-radius: 8px; width: 0%; transition: width 0.3s ease; }
+    
+    .question-box { display: none; }
+    .question-box.active { display: block; }
+    .question-box h3 { color: var(--primary); margin-bottom: 15px; }
+    .question-box p { line-height: 1.6; margin-bottom: 15px; font-size: 1.05em; }
+    
+    .option { display: block; margin-bottom: 10px; padding: 12px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; }
+    .option:hover { background: #edf2f7; }
+    .option input { margin-right: 10px; }
+    
+    textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95em; resize: vertical; margin-bottom: 10px; }
+    .answer-input { width: 100%; padding: 10px; border: 2px solid var(--primary); border-radius: 6px; font-size: 1em; margin-bottom: 10px; }
+    
+    .btn { background: var(--primary); color: white; border: none; padding: 12px 25px; font-size: 1.1em; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
+    .btn:hover { background: #123a66; }
+    .btn:disabled { background: #cbd5e0; cursor: not-allowed; }
+    
+    /* Resultados */
+    #screen-results { display: none; text-align: center; }
+    #screen-results h2 { color: var(--primary); }
+    .result-summary { background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; }
+    .feedback-item { margin-bottom: 10px; padding: 10px; border-left: 4px solid var(--primary); background: #fff; }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  
+  <!-- PANTALLA DE INICIO -->
+  <div id="screen-start">
+    <h1>Centro Escolar Catarino de Jesús Ortiz</h1>
+    <h2>Zacatecoluca - Examen Trimestral de Matemática 6° Grado</h2>
+    <p style="color:#666; margin-bottom: 30px;">Ingresa tus datos para comenzar. Tienes 2 horas.</p>
+    
+    <div class="form-group">
+      <label>Nombre Completo:</label>
+      <input type="text" id="student-name" placeholder="Ej. Juan Pérez">
+    </div>
+    <div class="form-group">
+      <label>NIE (Código de Estudiante):</label>
+      <input type="text" id="student-nie" placeholder="Ej. 12345678">
+    </div>
+    <div class="form-group">
+      <label>Fecha:</label>
+      <input type="date" id="student-date">
+    </div>
+    
+    <button class="btn" id="btn-start" onclick="startExam()" disabled>Iniciar Examen</button>
+  </div>
+
+  <!-- PANTALLA DEL EXAMEN -->
+  <div id="screen-exam">
+    <div class="header-exam">
+      <div><strong>Pregunta <span id="current-q-num">1</span> de 30</strong></div>
+      <div class="timer" id="timer-display">02:00:00</div>
+    </div>
+    <div class="progress-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <form id="exam-form" netlify>
+      <div id="questions-container"></div>
+      
+      <input type="hidden" name="nombre" id="form-nombre">
+      <input type="hidden" name="nie" id="form-nie">
+      <input type="hidden" name="fecha" id="form-fecha">
+      <input type="hidden" name="resumen" id="form-resumen">
+      <input type="hidden" name="detalle" id="form-detalle">
+    </form>
+
+    <button class="btn" id="btn-next" onclick="nextQuestion()" disabled>Siguiente Pregunta</button>
+  </div>
+
+  <!-- PANTALLA DE RESULTADOS -->
+  <div id="screen-results">
+    <h2>Examen Finalizado</h2>
+    <div class="result-summary" id="result-summary"></div>
+    <div id="ai-feedback-container"></div>
+  </div>
+
+</div>
+
+<script>
+// --- CONFIGURACIÓN DE PREGUNTAS (Unidades 7, 8 y 10) ---
+const questions = [
+  // PARTE 1: OPCIÓN MÚLTIPLE (1-10) - Unidades 7 y 8
+  { id: 1, type: 'multiple', text: 'La media aritmética de las edades de 5 amigos es 12 años. Si las edades son 10, 14, 11, 15 y x, ¿cuál es el valor de x?', options: ['10', '12', '14', '16'], answer: '10' },
+  { id: 2, type: 'multiple', text: '¿Cuál es la moda del siguiente conjunto de datos: 5, 7, 7, 8, 9, 7, 5?', options: ['5', '7', '8', '9'], answer: '7' },
+  { id: 3, type: 'multiple', text: 'La mediana de los datos 3, 8, 1, 7, 4 es:', options: ['3', '4', '7', '8'], answer: '4' },
+  { id: 4, type: 'multiple', text: 'La mediana de los datos 10, 2, 6, 8, 4, 12 (cantidad par) es:', options: ['6', '7', '8', '9'], answer: '7' },
+  { id: 5, type: 'multiple', text: 'El volumen de un cubo de 4 cm de arista es:', options: ['12 cm³', '16 cm³', '64 cm³', '24 cm³'], answer: '64 cm³' },
+  { id: 6, type: 'multiple', text: 'El volumen de un prisma rectangular de 5 cm de largo, 3 cm de ancho y 2 cm de alto es:', options: ['10 cm³', '15 cm³', '30 cm³', '60 cm³'], answer: '30 cm³' },
+  { id: 7, type: 'multiple', text: 'La media de 4 números es 15. Si tres de ellos son 10, 12 y 20, ¿cuál es el cuarto número?', options: ['18', '20', '15', '12'], answer: '18' },
+  { id: 8, type: 'multiple', text: 'Un tanque tiene un volumen de 3 m³. ¿Cuántos litros de agua caben en él? (1 m³ = 1000 L)', options: ['300 L', '3000 L', '30 L', '30000 L'], answer: '3000 L' },
+  { id: 9, type: 'multiple', text: 'El volumen de un cuerpo irregular se puede medir:', options: ['Multiplicando largo x ancho x alto', 'Sumando sus aristas', 'Por el método de desplazamiento de agua', 'Con una regla'], answer: 'Por el método de desplazamiento de agua' },
+  { id: 10, type: 'multiple', text: 'La moda de los datos: 2, 3, 3, 4, 4, 4, 5 es:', options: ['2', '3', '4', '5'], answer: '4' },
+
+  // PARTE 2: PROCEDIMIENTO + RESPUESTA (11-20) - Unidades 7 y 8
+  { id: 11, type: 'procedure', text: 'Un estudiante obtuvo las siguientes notas: 8, 9, 7, 10 y 6. Calcula la media aritmética de sus notas.', answer: '8' },
+  { id: 12, type: 'procedure', text: 'Calcula la mediana de los siguientes datos: 15, 22, 18, 30, 12, 25, 20.', answer: '20' },
+  { id: 13, type: 'procedure', text: 'Calcula la moda del conjunto de datos: 4, 8, 4, 6, 8, 4, 10.', answer: '4' },
+  { id: 14, type: 'procedure', text: 'Calcula el volumen de un cubo cuya arista mide 7 cm.', answer: '343' },
+  { id: 15, type: 'procedure', text: 'Calcula el volumen de un prisma rectangular de 10 cm de largo, 4 cm de ancho y 5 cm de alto.', answer: '200' },
+  { id: 16, type: 'procedure', text: 'Un tanque tiene un volumen de 5 m³. ¿Cuántos litros de agua caben en él? (1 m³ = 1000 L). Escribe solo el número.', answer: '5000' },
+  { id: 17, type: 'procedure', text: 'Un cubo tiene un volumen de 125 cm³. ¿Cuánto mide su arista? Escribe solo el número.', answer: '5' },
+  { id: 18, type: 'procedure', text: 'La media de 3 números es 20. Si dos de ellos son 15 y 18, ¿cuál es el tercer número? Escribe solo el número.', answer: '27' },
+  { id: 19, type: 'procedure', text: 'Calcula la mediana de los datos: 8, 3, 5, 12, 7, 10. Escribe solo el número.', answer: '7.5' },
+  { id: 20, type: 'procedure', text: 'Un prisma rectangular tiene un volumen de 120 cm³. Si su largo es 6 cm y su ancho es 4 cm, ¿cuál es su altura? Escribe solo el número.', answer: '5' },
+
+  // PARTE 3: CREATIVA / ANTI-IA (21-30) - Unidad 10 (Simetría, Traslación, Rotación)
+  { id: 21, type: 'creative', text: 'Un compañero dice que al trasladar un triángulo, sus ángulos cambian. Explica por qué está mal y qué pasa realmente con los ángulos en una traslación.' },
+  { id: 22, type: 'creative', text: '¿Por qué un círculo tiene infinitos ejes de simetría? Explícalo con tus palabras.' },
+  { id: 23, type: 'creative', text: 'Un estudiante rota una figura 90° y luego 180°. ¿La figura final es la misma que si la hubiera rotado 270° de una sola vez? Justifica tu respuesta.' },
+  { id: 24, type: 'creative', text: '¿Qué diferencia hay entre una figura que tiene simetría axial y una que tiene simetría puntual? Da un ejemplo de cada una.' },
+  { id: 25, type: 'creative', text: 'Si una figura tiene simetría puntual, ¿necesariamente tiene simetría axial? Explica tu respuesta con un ejemplo.' },
+  { id: 26, type: 'creative', text: 'Un compañero dice que la letra "A" tiene simetría puntual. ¿Es correcto? Explica por qué.' },
+  { id: 27, type: 'creative', text: 'Explica con tus palabras qué significa que una traslación sea una "isometría".' },
+  { id: 28, type: 'creative', text: '¿Puede un triángulo escaleno tener un eje de simetría? ¿Por qué?' },
+  { id: 29, type: 'creative', text: 'Un estudiante dice que al rotar una figura 360° obtiene una figura diferente. Corrige su error y explica qué sucede realmente.' },
+  { id: 30, type: 'creative', text: 'Describe un ejemplo de la vida real donde veas una simetría axial (reflejo) y otro donde veas una traslación.' }
+];
+
+let currentQuestionIndex = 0;
+let timeLeft = 7200;
+let timerInterval;
+let studentData = { name: '', nie: '', date: '' };
+let examAnswers = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderQuestions();
+  document.getElementById('student-date').valueAsDate = new Date();
+  ['student-name', 'student-nie', 'student-date'].forEach(id => {
+    document.getElementById(id).addEventListener('input', checkStartForm);
+  });
+});
+
+function checkStartForm() {
+  const name = document.getElementById('student-name').value.trim();
+  const nie = document.getElementById('student-nie').value.trim();
+  const date = document.getElementById('student-date').value;
+  document.getElementById('btn-start').disabled = !(name && nie && date);
+}
+
+function startExam() {
+  studentData.name = document.getElementById('student-name').value.trim();
+  studentData.nie = document.getElementById('student-nie').value.trim();
+  studentData.date = document.getElementById('student-date').value;
+  
+  document.getElementById('form-nombre').value = studentData.name;
+  document.getElementById('form-nie').value = studentData.nie;
+  document.getElementById('form-fecha').value = studentData.date;
+
+  document.getElementById('screen-start').style.display = 'none';
+  document.getElementById('screen-exam').style.display = 'block';
+  
+  showQuestion(0);
+  startTimer();
+}
+
+function startTimer() {
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    updateTimerDisplay();
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      finishExam(true);
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const h = Math.floor(timeLeft / 3600);
+  const m = Math.floor((timeLeft % 3600) / 60);
+  const s = timeLeft % 60;
+  document.getElementById('timer-display').textContent = 
+    `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function renderQuestions() {
+  const container = document.getElementById('questions-container');
+  container.innerHTML = '';
+  
+  questions.forEach((q, index) => {
+    const div = document.createElement('div');
+    div.className = 'question-box';
+    div.id = `question-${index}`;
+    
+    let html = `<h3>Pregunta ${index + 1}</h3><p>${q.text}</p>`;
+    
+    if (q.type === 'multiple') {
+      q.options.forEach(opt => {
+        html += `<label class="option"><input type="radio" name="q${q.id}" value="${opt}" onchange="validateCurrent()"> ${opt}</label>`;
+      });
+    } else if (q.type === 'procedure') {
+      html += `
+        <p style="font-size:0.9em; color:#555;">Procedimiento:</p>
+        <textarea id="proc-${q.id}" oninput="validateCurrent()" placeholder="Escribe tu procedimiento aquí..."></textarea>
+        <p style="font-size:0.9em; color:#555;">Respuesta:</p>
+        <input type="text" class="answer-input" id="ans-${q.id}" oninput="validateCurrent()" placeholder="Escribe solo el resultado...">
+      `;
+    } else if (q.type === 'creative') {
+      html += `
+        <p style="font-size:0.9em; color:#555;">Justificación / Explicación:</p>
+        <textarea id="creative-${q.id}" oninput="validateCurrent()" placeholder="Explica tu respuesta con tus propias palabras..."></textarea>
+      `;
+    }
+    
+    div.innerHTML = html;
+    container.appendChild(div);
+  });
+}
+
+function showQuestion(index) {
+  document.querySelectorAll('.question-box').forEach(box => box.classList.remove('active'));
+  document.getElementById(`question-${index}`).classList.add('active');
+  document.getElementById('current-q-num').textContent = index + 1;
+  
+  const progress = ((index) / questions.length) * 100;
+  document.getElementById('progress-bar').style.width = progress + '%';
+  
+  validateCurrent();
+}
+
+function validateCurrent() {
+  const q = questions[currentQuestionIndex];
+  let isValid = false;
+  
+  if (q.type === 'multiple') {
+    const selected = document.querySelector(`input[name="q${q.id}"]:checked`);
+    isValid = !!selected;
+  } else if (q.type === 'procedure') {
+    const proc = document.getElementById(`proc-${q.id}`).value.trim();
+    const ans = document.getElementById(`ans-${q.id}`).value.trim();
+    isValid = proc.length > 2 && ans.length > 0;
+  } else if (q.type === 'creative') {
+    const txt = document.getElementById(`creative-${q.id}`).value.trim();
+    isValid = txt.length > 10;
+  }
+  
+  document.getElementById('btn-next').disabled = !isValid;
+}
+
+function nextQuestion() {
+  const q = questions[currentQuestionIndex];
+  let isCorrect = false;
+  let studentAnswer = '';
+
+  if (q.type === 'multiple') {
+    const selected = document.querySelector(`input[name="q${q.id}"]:checked`).value;
+    studentAnswer = selected;
+    isCorrect = selected === q.answer;
+  } else if (q.type === 'procedure') {
+    const proc = document.getElementById(`proc-${q.id}`).value;
+    const ans = document.getElementById(`ans-${q.id}`).value.trim();
+    studentAnswer = `Proc: ${proc} | Resp: ${ans}`;
+    isCorrect = ans === q.answer; 
+  } else {
+    studentAnswer = document.getElementById(`creative-${q.id}`).value;
+    isCorrect = null; // Se califica con IA al final
+  }
+
+  examAnswers.push({ id: q.id, correct: isCorrect, studentAnswer: studentAnswer });
+
+  if (currentQuestionIndex < questions.length - 1) {
+    currentQuestionIndex++;
+    showQuestion(currentQuestionIndex);
+  } else {
+    finishExam(false);
+  }
+}
+
+async function finishExam(timeout = false) {
+  clearInterval(timerInterval);
+  document.getElementById('screen-exam').style.display = 'none';
+  document.getElementById('screen-results').style.display = 'block';
+  
+  let correctCount = 0;
+  let autoGradedCount = 0;
+  let detailText = '';
+
+  examAnswers.forEach((ans) => {
+    const q = questions.find(x => x.id === ans.id);
+    if (q.type !== 'creative') {
+      autoGradedCount++;
+      if (ans.correct) correctCount++;
+      detailText += `P${ans.id}: ${ans.correct ? 'Correcto' : 'Incorrecto'} (Resp: ${ans.studentAnswer})\n`;
+    } else {
+      detailText += `P${ans.id} (Creativa): ${ans.studentAnswer}\n`;
+    }
+  });
+
+  // Mostrar resumen inicial
+  document.getElementById('result-summary').innerHTML = `
+    <p><strong>Nombre:</strong> ${studentData.name}</p>
+    <p><strong>NIE:</strong> ${studentData.nie}</p>
+    <p><strong>Resultado objetivo:</strong> ${correctCount} correctas de ${autoGradedCount} preguntas.</p>
+    <p>${timeout ? 'El tiempo ha terminado.' : 'Examen completado.'}</p>
+  `;
+
+  // --- CALIFICACIÓN CON IA (GEMINI) ---
+  const creativas = examAnswers.filter(a => a.correct === null);
+  const feedbackContainer = document.getElementById('ai-feedback-container');
+  feedbackContainer.innerHTML = '<h3>Calificando respuestas abiertas con IA...</h3><p>Por favor espera.</p>';
+
+  let aiCorrectCount = 0;
+  let aiFeedbackHtml = '<h3>Retroalimentación de la IA:</h3>';
+
+  for (const creativa of creativas) {
+    const preguntaObj = questions.find(q => q.id === creativa.id);
+    try {
+      const response = await fetch('/api/calificar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pregunta: preguntaObj.text,
+          respuestaEstudiante: creativa.studentAnswer,
+          rubrica: "Evalúa si el estudiante demuestra comprensión del concepto de simetría, traslación o rotación. La respuesta debe ser coherente, usar terminología correcta y explicar el porqué. Asigna una nota del 0 al 1, donde 0 es incorrecto y 1 es perfecto. Devuelve un JSON con 'nota' (número) y 'feedback' (texto)."
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.nota >= 0.7) aiCorrectCount++;
+      
+      aiFeedbackHtml += `
+        <div class="feedback-item">
+          <strong>Pregunta ${creativa.id}:</strong> ${data.feedback}
+        </div>
+      `;
+    } catch (e) {
+      aiFeedbackHtml += `
+        <div class="feedback-item">
+          <strong>Pregunta ${creativa.id}:</strong> No se pudo calificar automáticamente.
+        </div>
+      `;
+    }
+  }
+
+  feedbackContainer.innerHTML = aiFeedbackHtml;
+
+  // Actualizar resumen final con IA
+  document.getElementById('result-summary').innerHTML += `
+    <p><strong>Resultado con IA (Creativas):</strong> ${aiCorrectCount} correctas de ${creativas.length} preguntas.</p>
+  `;
+
+  // Guardar todo en Netlify Forms
+  const resumenFinal = `Objetivas: ${correctCount}/${autoGradedCount} | Creativas (IA): ${aiCorrectCount}/${creativas.length}`;
+  document.getElementById('form-resumen').value = resumenFinal;
+  document.getElementById('form-detalle').value = detailText;
+  
+  document.getElementById('exam-form').submit();
+}
+</script>
+</body>
+</html>
